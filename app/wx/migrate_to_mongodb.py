@@ -298,6 +298,35 @@ def parse_ExtraBuf(ExtraBuf: bytes):
             result[rdata_name] = f"0x{ExtraBuf[offset: offset + 8].hex()}"
     return result
 
+def migrate_to_mongodb(msg_db_path: str, micromsg_db_path: str, mongodb_uri: str = "mongodb://localhost:27017/", database_name: str = "wechat_msg"):
+    """迁移数据到MongoDB
+    
+    Args:
+        msg_db_path: MSG数据库路径
+        micromsg_db_path: MicroMsg数据库路径
+        mongodb_uri: MongoDB连接URI
+        database_name: MongoDB数据库名称
+    """
+    try:
+        # 初始化MongoDB迁移器
+        migrator = MongoDBMigrator(mongodb_uri, database_name)
+        
+        # 执行数据迁移
+        print(f"[{datetime.now()}] 开始迁移消息数据...")
+        migrator.migrate_messages(msg_db_path)
+        
+        print(f"[{datetime.now()}] 开始迁移联系人数据...")
+        migrator.migrate_contacts(micromsg_db_path)
+        
+        print(f"[{datetime.now()}] 开始迁移群聊数据...")
+        migrator.migrate_chatrooms(micromsg_db_path)
+        
+        print(f"[{datetime.now()}] 数据迁移完成")
+        return True
+    except Exception as e:
+        print(f"[{datetime.now()}] 数据迁移失败: {str(e)}")
+        return False
+
 if __name__ == "__main__":
     # 示例用法
     MSG_DB_PATH = "app/Database/Msg/MSG.db"

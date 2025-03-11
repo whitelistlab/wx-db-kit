@@ -70,7 +70,7 @@ def manual_get_keyAndPath(name='', mobile='', wxid=''):
         return None
 
 def save_wechat_info(info):
-    """保存微信信息到文件
+    """保存微信信息到文件，支持多用户
     Args:
         info: 包含微信信息的字典
     """
@@ -79,7 +79,7 @@ def save_wechat_info(info):
         
     try:
         # 准备要保存的数据
-        save_data = {
+        new_data = {
             'wxid': info['wxid'],
             'wx_dir': info['filePath'],
             'name': info['name'],
@@ -87,21 +87,50 @@ def save_wechat_info(info):
             'key': info['key']
         }
         
+        # 读取现有数据
+        existing_data = []
+        try:
+            try:
+                with open('./app/data/info.json', 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+            except:
+                with open('./info.json', 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+        except:
+            existing_data = []
+            
+        # 如果读取到的不是列表，转换为列表
+        if not isinstance(existing_data, list):
+            existing_data = [existing_data] if existing_data else []
+            
+        # 检查是否已存在该用户，存在则更新
+        updated = False
+        for i, item in enumerate(existing_data):
+            if item.get('wxid') == new_data['wxid']:
+                existing_data[i] = new_data
+                updated = True
+                break
+                
+        # 如果不存在则追加
+        if not updated:
+            existing_data.append(new_data)
+        
         # 保存到文件
         try:
             with open('./app/data/info.json', 'w', encoding='utf-8') as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=4)
+                json.dump(existing_data, f, ensure_ascii=False, indent=4)
         except:
-            # 如果默认路径失败，尝试保存到当前目录
             with open('./info.json', 'w', encoding='utf-8') as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=4)
+                json.dump(existing_data, f, ensure_ascii=False, indent=4)
                 
         print("微信信息已保存到文件")
     except Exception as e:
         print(f"保存微信信息时出错：{str(e)}")
 
-def load_wechat_info():
+def load_wechat_info(wxid=None):
     """从文件读取微信信息
+    Args:
+        wxid: 指定要读取的微信号，为None时返回第一个用户信息
     Returns:
         dict: 包含微信信息的字典，读取失败返回None
     """
@@ -109,28 +138,51 @@ def load_wechat_info():
         # 尝试从默认路径读取
         try:
             with open('./app/data/info.json', 'r', encoding='utf-8') as f:
-                info = json.load(f)
+                data = json.load(f)
         except:
             # 如果默认路径失败，尝试从当前目录读取
             with open('./info.json', 'r', encoding='utf-8') as f:
-                info = json.load(f)
+                data = json.load(f)
         
-        # 转换为程序内部使用的格式
-        return {
-            'wxid': info['wxid'],
-            'name': info['name'],
-            'mobile': info['mobile'],
-            'key': info['key'],
-            'filePath': info['wx_dir']
-        }
+        # 确保数据是列表格式
+        if not isinstance(data, list):
+            data = [data] if data else []
+            
+        # 如果指定了wxid，查找对应用户信息
+        if wxid:
+            for item in data:
+                if item.get('wxid') == wxid:
+                    return {
+                        'wxid': item['wxid'],
+                        'name': item['name'],
+                        'mobile': item['mobile'],
+                        'key': item['key'],
+                        'filePath': item['wx_dir']
+                    }
+            return None
+            
+        # 未指定wxid时返回第一个用户信息
+        if data:
+            item = data[0]
+            return {
+                'wxid': item['wxid'],
+                'name': item['name'],
+                'mobile': item['mobile'],
+                'key': item['key'],
+                'filePath': item['wx_dir']
+            }
+        return None
     except Exception as e:
         print(f"从文件读取微信信息失败：{str(e)}")
         return None
 
-def get_wechat_info():
-    """获取微信信息，包括密钥、wxid等  """
+def get_wechat_info(wxid=None):
+    """获取微信信息，包括密钥、wxid等
+    Returns:
+        dict: 包含微信信息的字典，获取失败返回None
+    """
     # 优先尝试从文件读取信息
-    info = load_wechat_info()
+    info = load_wechat_info(wxid)
     if info:
         print("已从文件读取微信信息")
         return info
@@ -141,7 +193,10 @@ def get_wechat_info():
         with open(version_list_path, 'r') as f:
             VERSION_LIST = json.load(f)
         
+        # 获取微信信息
         info = get_wx_info.get_info(VERSION_LIST)
+        
+        # 处理返回结果
         if isinstance(info, int):
             if info == -1:
                 print("错误：请登录微信")
@@ -164,25 +219,28 @@ def get_wechat_info():
             except Exception as e:
                 print(f"获取新版本偏移地址失败：{str(e)}")
                 # 如果仍然失败，提示手动输入
-            print(f"错误：当前微信版本 {version} 不受支持")
+
+            if isinstance(info, str):
+                print(f"错误：当前微信版本 {info} 不受支持")
+            elif not isinstance(info, list) or len(info) == 0:
+                print("自动获取信息失败")
+                
             print("请手动输入以下信息:")
             name = input("请输入微信昵称(直接回车跳过): ").strip()
             mobile = input("请输入手机号(直接回车跳过): ").strip()
             wxid = input("请输入微信号(直接回车跳过): ").strip()
             info = manual_get_keyAndPath(name, mobile, wxid)
-            # 尝试手动获取信息
+            if info:
+                save_wechat_info(info)
             return info
-        elif not isinstance(info, list) or len(info) == 0:
-            # 自动获取失败，尝试手动输入
-            print("自动获取信息失败，请手动输入以下信息:")
-            name = input("请输入微信昵称(直接回车跳过): ").strip()
-            mobile = input("请输入手机号(直接回车跳过): ").strip()
-            wxid = input("请输入微信号(直接回车跳过): ").strip()
-
-            info = manual_get_keyAndPath(name, mobile, wxid)
-            # 尝试手动获取信息
-            return info
+            # 处理正常获取的信息
+        if isinstance(info, list) and len(info) > 0:
+            info_result = info[0]  # 获取第一个微信进程的信息
+            save_wechat_info(info_result)  # 保存信息到文件
+            return info_result
+        return None
             
+        # 处理正常获取的信息
         info_result = info[0]  # 获取第一个微信进程的信息
         save_wechat_info(info_result)  # 保存信息到文件
         return info_result
