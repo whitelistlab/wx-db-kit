@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+venv_decrypt/
+venv_main_pc/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+/data/
+/DataBase/
+/doc/
+/memoAI/
+/app/database/msg/
+/app/data/avatar/
+/app/data/image2/
+/app/data/emoji/
+/server/
+
+# Database
+*.db
+*.sqlite3
+
+# Logs and temp files
+*.log
+*.spec
+*.bat
+*.pyc
+*.ui
+test*
+wordcloud.html
+
+# Keep specific files
+!main.py
+!requirements.txt
