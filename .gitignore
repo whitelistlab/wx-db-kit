@@ -60,3 +60,5 @@ wordcloud.html
 # Keep specific files
 !main.py
 !requirements.txt
+
+.env
