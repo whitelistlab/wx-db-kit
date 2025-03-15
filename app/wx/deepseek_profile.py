@@ -6,6 +6,7 @@ from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
 import re
+import jieba
 
 class DeepSeekProfileAnalyzer:
     def __init__(self, mongodb_uri: str = "mongodb://localhost:27017/", database_name: str = "t"):
@@ -19,29 +20,53 @@ class DeepSeekProfileAnalyzer:
         
         # 扩展垃圾信息关键词
         self.spam_keywords = [
-            '1','收到'
+            # 寒暄类
+            '你好', '嗨', '在吗', '在不在', '您好', '早上好', '晚安', '谢谢', '感谢', '不客气',
+            # 填充词
+            '嗯', '哦', '额', '啊', '哈哈', '呵呵',
+            # 回应词
+            '是的', '好的', '嗯嗯', '可以', '没问题', '收到', '1' 
+            # 系统消息
+            '欢迎加入群聊', '本群禁止广告', '红包已领取'
         ]
+        
+        # 电商领域停用词
+        self.stopwords = set([
+            '的', '了', '和', '是', '就', '都', '而', '及', '与', '这', '那', '你', '我', '他',
+            '也', '但', '又', '或', '如果', '因为', '所以', '只是', '不过', '可以', '没有'
+        ])
         
         # 扩展特殊字符集
         self.special_chars = set(['/', '\\', '，', '。', '：', '；', '！', '？', '、', '~', '@', '#', '$',
                                '%', '^', '&', '*', '(', ')', '-', '_', '+', '=', '<', '>', '"', '\'',
-                               '[', ']', '{', '}', '|', '`'])
+                               '[', ']', '{', '}', '|', '`', '（', '）', '【', '】', '《', '》'])
     
     def filter_spam_content(self, content: str) -> bool:
         """过滤垃圾内容
         返回True表示是正常内容，False表示是垃圾内容
         """
+        # 预处理：分词并过滤停用词
+        words = [word for word in jieba.cut(content) if word not in self.stopwords]
+        processed_content = ''.join(words)
+
         # 检查消息内容是否完全等于垃圾关键词
-        cleaned_content = content.strip()
-        if cleaned_content in self.spam_keywords:
+        if processed_content.strip() in self.spam_keywords:
             return False
-        
-        # 检查重复字符
-        if len(set(content)) < len(content) * 0.15:  # 进一步降低重复字符判定阈值
+
+        # 处理空内容情况
+        if len(processed_content) == 0:
             return False
+            
+        # 多层级重复检测：原始内容和处理后内容双重检测
+        raw_repeat_ratio = len(set(content)) / max(len(content), 1)
+        processed_repeat_ratio = len(set(processed_content)) / max(len(processed_content), 1)
         
-        # 检查内容长度
-        if len(content) < 1 or len(content) > 1000:  # 放宽内容长度限制
+        if raw_repeat_ratio < 0.2 or processed_repeat_ratio < 0.15:
+            return False
+
+        # 动态内容长度检测
+        valid_length = 3 < len(processed_content) < 800
+        if not valid_length:
             return False
         
         return True
@@ -157,7 +182,7 @@ class DeepSeekProfileAnalyzer:
 1. 购物偏好（价格敏感度、品牌态度、产品品类等）
 2. 消费行为（理性/冲动、决策周期、参考因素等）
 3. 购物动机（功能性需求、情感需求等）
-4. 其他特征（活跃度、客服交互方式等）
+4. 其他特征（活跃度、客服交互方式、最适合分享的内容类型、潜在的销售机会等）
 
 聊天记录：
 {conversation}
@@ -242,8 +267,8 @@ if __name__ == "__main__":
     import asyncio
     
     async def main():
-        analyzer = DeepSeekProfileAnalyzer()
-        profile = await analyzer.analyze_user_profile("马妞（不售后，需要售后找客服）")
+        analyzer = DeepSeekProfileAnalyzer(database_name='my_wechat')
+        profile = await analyzer.analyze_user_profile("Ann")
         print(json.dumps(profile, ensure_ascii=False, indent=2))
     
     asyncio.run(main())
